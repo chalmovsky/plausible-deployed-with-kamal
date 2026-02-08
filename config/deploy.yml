@@ -1,0 +1,71 @@
+service: plausible
+image: plausible
+
+ssh:
+  user: root
+
+servers:
+  web:
+    hosts:
+      - plausible.chalmovsky.com
+    cmd: sh -c "/entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
+    options:
+      ulimit: nofile=65535:65535
+
+proxy:
+  ssl: true
+  host: plausible.chalmovsky.com
+  app_port: 8000
+  healthcheck:
+    path: /api/health
+    interval: 3
+    timeout: 120
+
+registry:
+  server: localhost:5555
+
+builder:
+  arch: amd64
+
+env:
+  clear:
+    BASE_URL: https://plausible.chalmovsky.com
+    DATABASE_URL: postgres://postgres:postgres@plausible-db:5432/plausible
+    CLICKHOUSE_DATABASE_URL: http://plausible-events-db:8123/plausible
+    DISABLE_REGISTRATION: invite_only
+    TMPDIR: /var/lib/plausible/tmp
+  secret:
+    - SECRET_KEY_BASE
+
+volumes:
+  - plausible-data:/var/lib/plausible
+
+accessories:
+  db:
+    image: postgres:16-alpine
+    host: plausible.chalmovsky.com
+    port: "127.0.0.1:5432:5432"
+    env:
+      clear:
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_DB: plausible
+    directories:
+      - plausible-db-data:/var/lib/postgresql/data
+
+  events-db:
+    image: clickhouse/clickhouse-server:24.12-alpine
+    host: plausible.chalmovsky.com
+    port: "127.0.0.1:8123:8123"
+    env:
+      clear:
+        CLICKHOUSE_SKIP_USER_SETUP: "1"
+    directories:
+      - plausible-events-data:/var/lib/clickhouse
+      - plausible-events-logs:/var/log/clickhouse-server
+    files:
+      - clickhouse/logs.xml:/etc/clickhouse-server/config.d/logs.xml
+      - clickhouse/ipv4-only.xml:/etc/clickhouse-server/config.d/ipv4-only.xml
+      - clickhouse/low-resources.xml:/etc/clickhouse-server/config.d/low-resources.xml
+      - clickhouse/default-profile-low-resources-overrides.xml:/etc/clickhouse-server/users.d/default-profile-low-resources-overrides.xml
+    options:
+      ulimit: nofile=262144:262144
