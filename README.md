@@ -1,2 +1,3 @@
 .kamal/secrets is not commited
-put it in and a generated secret
+
+generate a secret and put it in there when deploying
